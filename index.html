@@ -19,52 +19,113 @@ canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
 let ball = { x: 50, y: 50, r: 20, vx: 0, vy: 0 };
-let target = { x: Math.random()*canvas.width, y: Math.random()*canvas.height, r: 25 };
+let target = { x: 300, y: 300, r: 25 };
+let walls = [];
+
+function randomInRange(min, max) {
+    return Math.random() * (max - min) + min;
+}
+
+function generateWalls(count = 8) {
+    walls = [];
+    for (let i = 0; i < count; i++) {
+        let w = randomInRange(50, 150);
+        let h = randomInRange(20, 80);
+        let x = randomInRange(0, canvas.width - w);
+        let y = randomInRange(0, canvas.height - h);
+        // Keep clear from starting ball and target
+        if (Math.abs(x - ball.x) < 100 && Math.abs(y - ball.y) < 100) continue;
+        walls.push({ x, y, width: w, height: h });
+    }
+}
+generateWalls();
 
 window.addEventListener("deviceorientation", (e) => {
-    const gX = e.gamma;  // left/right tilt
-    const gY = e.beta;   // forward/back tilt
+    const gX = e.gamma;
+    const gY = e.beta;
     ball.vx += gX * 0.05;
     ball.vy += gY * 0.05;
 });
 
 function newTarget() {
-    target.x = Math.random() * (canvas.width - target.r*2) + target.r;
-    target.y = Math.random() * (canvas.height - target.r*2) + target.r;
+    target.x = Math.random() * (canvas.width - target.r * 2) + target.r;
+    target.y = Math.random() * (canvas.height - target.r * 2) + target.r;
+}
+
+function checkCollisionWithWalls() {
+    for (const wall of walls) {
+        if (
+            ball.x + ball.r > wall.x &&
+            ball.x - ball.r < wall.x + wall.width &&
+            ball.y + ball.r > wall.y &&
+            ball.y - ball.r < wall.y + wall.height
+        ) {
+            // Simple response: push ball outside wall + reverse direction
+            // Horizontal
+            if (
+                ball.y > wall.y &&
+                ball.y < wall.y + wall.height
+            ) {
+                if (ball.x < wall.x) ball.x = wall.x - ball.r;
+                else ball.x = wall.x + wall.width + ball.r;
+                ball.vx *= -0.7;
+            }
+
+            // Vertical
+            if (
+                ball.x > wall.x &&
+                ball.x < wall.x + wall.width
+            ) {
+                if (ball.y < wall.y) ball.y = wall.y - ball.r;
+                else ball.y = wall.y + wall.height + ball.r;
+                ball.vy *= -0.7;
+            }
+        }
+    }
 }
 
 function update() {
     ball.x += ball.vx;
     ball.y += ball.vy;
-    ball.vx *= 0.98; // friction
+    ball.vx *= 0.98;
     ball.vy *= 0.98;
 
     // Bounce off walls
     if (ball.x - ball.r < 0 || ball.x + ball.r > canvas.width) ball.vx *= -0.8;
     if (ball.y - ball.r < 0 || ball.y + ball.r > canvas.height) ball.vy *= -0.8;
 
-    // Win detection
+    // Wall collisions
+    checkCollisionWithWalls();
+
+    // Win check
     const dx = ball.x - target.x;
     const dy = ball.y - target.y;
-    if (Math.sqrt(dx*dx + dy*dy) < ball.r + target.r) {
+    if (Math.sqrt(dx * dx + dy * dy) < ball.r + target.r) {
         newTarget();
+        generateWalls();
     }
 }
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw target
+    // Target
     ctx.fillStyle = "lime";
     ctx.beginPath();
-    ctx.arc(target.x, target.y, target.r, 0, Math.PI*2);
+    ctx.arc(target.x, target.y, target.r, 0, Math.PI * 2);
     ctx.fill();
 
-    // Draw ball
+    // Ball
     ctx.fillStyle = "red";
     ctx.beginPath();
-    ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI*2);
+    ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
     ctx.fill();
+
+    // Walls
+    ctx.fillStyle = "white";
+    walls.forEach(w => {
+        ctx.fillRect(w.x, w.y, w.width, w.height);
+    });
 }
 
 function loop() {
