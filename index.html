@@ -18,27 +18,87 @@ const ctx = canvas.getContext("2d");
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
+let level = 1;
+let levelTimer = 0;
+let levelTextVisible = false;
+
 let ball = { x: 50, y: 50, r: 20, vx: 0, vy: 0 };
 let target = { x: 300, y: 300, r: 25 };
 let walls = [];
+
+const GRID_ROWS = 6;
+const GRID_COLS = 10;
 
 function randomInRange(min, max) {
     return Math.random() * (max - min) + min;
 }
 
-function generateWalls(count = 8) {
+function generateWalls() {
     walls = [];
-    for (let i = 0; i < count; i++) {
-        let w = randomInRange(50, 150);
-        let h = randomInRange(20, 80);
-        let x = randomInRange(0, canvas.width - w);
-        let y = randomInRange(0, canvas.height - h);
-        // Keep clear from starting ball and target
-        if (Math.abs(x - ball.x) < 100 && Math.abs(y - ball.y) < 100) continue;
-        walls.push({ x, y, width: w, height: h });
+
+    const cellWidth = canvas.width / GRID_COLS;
+    const cellHeight = canvas.height / GRID_ROWS;
+
+    let maxWalls = Math.min(level * 2, GRID_ROWS * GRID_COLS - 4); // 4 safe cells
+
+    let usedCells = new Set();
+
+    while (walls.length < maxWalls) {
+        let r = Math.floor(Math.random() * GRID_ROWS);
+        let c = Math.floor(Math.random() * GRID_COLS);
+        let cellKey = r + "," + c;
+
+        // Skip duplicates or near ball/target zone
+        if (usedCells.has(cellKey)) continue;
+        let cellX = c * cellWidth;
+        let cellY = r * cellHeight;
+
+        if (Math.abs(cellX - ball.x) < 100 && Math.abs(cellY - ball.y) < 100) continue;
+        if (Math.abs(cellX - target.x) < 100 && Math.abs(cellY - target.y) < 100) continue;
+
+        usedCells.add(cellKey);
+
+        // Random wall size inside the cell
+        let wallW = randomInRange(cellWidth * 0.5, cellWidth * 0.9);
+        let wallH = randomInRange(20, 60);
+
+        walls.push({
+            x: cellX + randomInRange(0, cellWidth - wallW),
+            y: cellY + randomInRange(0, cellHeight - wallH),
+            width: wallW,
+            height: wallH
+        });
     }
 }
-generateWalls();
+
+function newTarget() {
+    target.x = Math.random() * (canvas.width - target.r * 2) + target.r;
+    target.y = Math.random() * (canvas.height - target.r * 2) + target.r;
+}
+
+function startNewLevel() {
+    level++;
+    ball.x = 50;
+    ball.y = 50;
+    ball.vx = 0;
+    ball.vy = 0;
+    newTarget();
+    generateWalls();
+    levelTimer = 60;  // frames (~1 sec)
+    levelTextVisible = true;
+}
+
+function showLevelText() {
+    if (!levelTextVisible) return;
+    ctx.fillStyle = "rgba(255,255,255,0.8)";
+    ctx.font = "48px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("LEVEL " + level, canvas.width / 2, 60);
+    levelTimer--;
+    if (levelTimer <= 0) {
+        levelTextVisible = false;
+    }
+}
 
 window.addEventListener("deviceorientation", (e) => {
     const gX = e.gamma;
@@ -46,11 +106,6 @@ window.addEventListener("deviceorientation", (e) => {
     ball.vx += gX * 0.05;
     ball.vy += gY * 0.05;
 });
-
-function newTarget() {
-    target.x = Math.random() * (canvas.width - target.r * 2) + target.r;
-    target.y = Math.random() * (canvas.height - target.r * 2) + target.r;
-}
 
 function checkCollisionWithWalls() {
     for (const wall of walls) {
@@ -60,8 +115,7 @@ function checkCollisionWithWalls() {
             ball.y + ball.r > wall.y &&
             ball.y - ball.r < wall.y + wall.height
         ) {
-            // Simple response: push ball outside wall + reverse direction
-            // Horizontal
+            // Handle collision
             if (
                 ball.y > wall.y &&
                 ball.y < wall.y + wall.height
@@ -71,7 +125,6 @@ function checkCollisionWithWalls() {
                 ball.vx *= -0.7;
             }
 
-            // Vertical
             if (
                 ball.x > wall.x &&
                 ball.x < wall.x + wall.width
@@ -90,19 +143,15 @@ function update() {
     ball.vx *= 0.98;
     ball.vy *= 0.98;
 
-    // Bounce off walls
     if (ball.x - ball.r < 0 || ball.x + ball.r > canvas.width) ball.vx *= -0.8;
     if (ball.y - ball.r < 0 || ball.y + ball.r > canvas.height) ball.vy *= -0.8;
 
-    // Wall collisions
     checkCollisionWithWalls();
 
-    // Win check
     const dx = ball.x - target.x;
     const dy = ball.y - target.y;
     if (Math.sqrt(dx * dx + dy * dy) < ball.r + target.r) {
-        newTarget();
-        generateWalls();
+        startNewLevel();
     }
 }
 
@@ -126,6 +175,8 @@ function draw() {
     walls.forEach(w => {
         ctx.fillRect(w.x, w.y, w.width, w.height);
     });
+
+    showLevelText();
 }
 
 function loop() {
@@ -133,6 +184,9 @@ function loop() {
     draw();
     requestAnimationFrame(loop);
 }
+
+newTarget();
+generateWalls();
 loop();
 </script>
 
